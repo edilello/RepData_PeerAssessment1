@@ -1,0 +1,131 @@
+# Reproducible Research: Peer Assessment 1
+
+#Coursera course on Reproducible Research 
+
+#Peer Assessment Project 1 
+
+##Loading and preprocessing the data
+
+Load the data
+
+
+```r
+activity_data <- read.csv("activity.csv")
+```
+
+##What is the mean total number of steps taken per day?
+
+Calculate the number of steps taken per day, then show the histogram of the number of steps taken per day
+
+```r
+library(plyr)
+spd_data <- ddply(activity_data,c("date"),summarise, steps_per_day = sum(steps)) # using ddply
+```
+
+Calculate and report the mean and median of the total number of steps taken per day
+
+
+```r
+mean_spd <- mean(spd_data$steps_per_day, na.rm = TRUE)
+median_spd <- median(spd_data$steps_per_day, na.rm = TRUE)
+with(spd_data, hist(steps_per_day))
+abline(v = mean_spd, lwd = 3)
+abline(v = median_spd, lwd = 3)
+```
+
+![](Project1_files/figure-html/unnamed-chunk-3-1.png) 
+
+##What is the average daily activity pattern?
+
+Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+
+
+```r
+interval_data <- ddply(activity_data,c("interval"),summarise, steps_per_interval = mean(steps, na.rm = TRUE)) # using ddply
+
+with(interval_data,plot(unique(interval),steps_per_interval, type = "l",xlab = "Time", ylab = "Steps per day"))
+```
+
+![](Project1_files/figure-html/unnamed-chunk-4-1.png) 
+
+Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
+```r
+max_interval <- interval_data$interval[which.max(interval_data$steps_per_interval)]
+```
+
+
+##Imputing missing values
+
+Compute missing data statistics
+
+```r
+total_missing_data = sum(is.na(activity_data$steps))
+missing_data_pct = mean(is.na(activity_data$steps))
+```
+
+Imputing missing data using the mean of the 5 interval computed over the whole period
+
+I'd like to avoid using a for loop for this, here how:
+
+- Replicate the summarised interval data for the 61 days period, for a total of 61*288 = 17568
+- Exploit the fact that both the original activity data and interval data are ordered
+- Find the missing values, and replace the step column of activity data with the corresponding entry of the average interval data
+
+
+```r
+stretched_interval_data <- rep(interval_data$steps_per_interval, length(unique(activity_data$date)))
+missing_step_data <- is.na(activity_data$steps)
+new_activity_data <- activity_data
+new_activity_data[missing_step_data,"steps"] <- stretched_interval_data[missing_step_data]
+```
+
+Show the histogram of the number of steps taken per day with the imputed data
+
+```r
+new_spd_data <- ddply(new_activity_data,c("date"),summarise, steps_per_day = sum(steps)) # using ddply
+```
+
+Calculate and report the mean and median of the total number of steps taken per day
+
+
+```r
+new_mean_spd <- mean(new_spd_data$steps_per_day)
+new_median_spd <- median(new_spd_data$steps_per_day)
+with(new_spd_data, hist(steps_per_day))
+abline(v = mean_spd, lwd = 3)
+abline(v = median_spd, lwd = 3)
+```
+
+![](Project1_files/figure-html/unnamed-chunk-9-1.png) 
+
+What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+
+```r
+mean_diff_pct = (mean_spd-new_mean_spd)/new_mean_spd*100
+median_diff_pct = (median_spd-new_median_spd)/new_median_spd*100
+```
+##Are there differences in activity patterns between weekdays and weekends?
+
+
+```r
+new_activity_data$date = as.Date(new_activity_data$date, "%Y-%m-%d")
+new_activity_data$weekday = as.factor(weekdays(new_activity_data$date))
+new_activity_data$weekday <- revalue(new_activity_data$weekday, c("Monday"= "weekday","Tuesday"= "weekday",
+                                                                  "Wednesday"= "weekday","Thursday"= "weekday",
+                                                                  "Friday"= "weekday","Saturday"= "weekend",
+                                                                  "Sunday"= "weekend"))
+interval_data_weekday <- ddply(new_activity_data,c("weekday","interval"),summarise, steps_per_interval_weekday = mean(steps, na.rm = TRUE)) # using ddply
+library(ggplot2)
+g <- ggplot(interval_data_weekday, aes(interval,steps_per_interval_weekday))
+g <- g + geom_point() + facet_grid(. ~ weekday) + geom_smooth()
+print(g)
+```
+
+```
+## geom_smooth: method="auto" and size of largest group is <1000, so using loess. Use 'method = x' to change the smoothing method.
+## geom_smooth: method="auto" and size of largest group is <1000, so using loess. Use 'method = x' to change the smoothing method.
+```
+
+![](Project1_files/figure-html/unnamed-chunk-11-1.png) 
